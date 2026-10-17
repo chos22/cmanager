@@ -84,19 +84,15 @@ function registerAutomaticBenefits(){
  if(changed)localStorage.setItem(BENEFIT_STATE_STORAGE,JSON.stringify(benefitStates));
  return changed;
 }
-function balanceLedger(c){
- // The dashboard and the month editor read exactly the same derived award/usage records.
- // No legacy used amount is double-counted if the newer monthly entry exists for that month.
- const credited=automaticAwardEntries(c).reduce((sum,g)=>sum+g.amount,0);
- const months=new Set();const prefix=c.id+'|';
- for(const k of Object.keys(benefitUsageRecords))if(k.startsWith(prefix))months.add(k.slice(prefix.length));
- for(const [key,state] of Object.entries(benefitStates))if(key.startsWith(prefix)&&(Number(state.used)||0)>0)
-  months.add(monthPlus(key.slice(prefix.length),2));
- const monthlyUsed=[...months].filter(ruleMonthValid).reduce((sum,m)=>sum+benefitUsageMonth(c.id,m),0);
+function balanceLedger(c,m=month()){
+ // Benefits expire at the end of their payment month. Keep historical rows intact;
+ // only this month's grant and usage contribute to its available balance.
+ const credited=m<=month()?benefitPayment(c,m).amount:0;
+ const monthlyUsed=benefitUsageMonth(c.id,m);
  return{credited,spent:monthlyUsed,remaining:Math.max(0,credited-monthlyUsed),monthlyUsed};
 }
 function automaticDiscount(c,m,ts){return ts.remaining===0?Math.max(0,Number(ts.current?.benefit)||0):0}
-function benefitSummary(c,m,st,ts){if(benefitMode(c)==='balance'){const bal=balanceLedger(c);return `<div class="manual-benefit"><span>잔여 혜택</span><strong>${won(bal.remaining)}</strong></div>`}const amount=automaticDiscount(c,m,ts);return `<div class="manual-benefit"><span>청구 달성형 · ${amount>0?'청구할인 혜택':'목표 미달성'}</span><strong>${won(amount)}</strong></div>`}
+function benefitSummary(c,m,st,ts){if(benefitMode(c)==='balance'){const bal=balanceLedger(c,m);return `<div class="manual-benefit"><span>잔여 혜택</span><strong>${won(bal.remaining)}</strong></div>`}const amount=automaticDiscount(c,m,ts);return `<div class="manual-benefit"><span>청구 달성형 · ${amount>0?'청구할인 혜택':'목표 미달성'}</span><strong>${won(amount)}</strong></div>`}
 function benefitPanel(c,m,st,ts){
  if(benefitMode(c)==='discount'){
   const amount=automaticDiscount(c,m,ts);
@@ -111,7 +107,7 @@ function benefitPanel(c,m,st,ts){
    <strong>${won(payment.amount)}</strong><small>${payment.tier?won(payment.tier.threshold)+' 이상 구간 · '+monthLabel(payment.earnedMonth)+' 실적 '+won(payment.eligible):'해당 월의 달성 구간 없음 · '+monthLabel(payment.earnedMonth)+' 실적 '+won(payment.eligible)}</small>
   </div>
   <p class="note benefit-qualifying-hint">${monthLabel(payment.earnedMonth)} 인정 실적을 변경하면 ${monthLabel(m)} 할인 혜택에 반영돼요.</p>
-  <form id="benefit-usage-form" class="benefit-entry-usage">${amountControlEight('사용 실적','benefitUsed',benefitUsageMonth(c.id,m))}<div class="actions"><button class="primary" type="submit">사용 실적 저장</button></div><p class="note" id="benefit-usage-status" role="status">${monthLabel(m)} 사용 실적 누계 · 버튼이나 숫자 입력으로 조정해요.</p></form>
+  <form id="benefit-usage-form" class="benefit-entry-usage">${amountControlEight('사용한 혜택 금액','benefitUsed',benefitUsageMonth(c.id,m))}<div class="actions"><button class="primary" type="submit">혜택 사용액 저장</button></div><p class="note" id="benefit-usage-status" role="status">${monthLabel(m)}에 사용한 혜택의 총액을 입력해요. 남은 혜택은 이달 말 소멸하며 다음 달로 이월되지 않아요.</p></form>
  </div></div>`;
 }
 function benefitModeEdit(cid,m){const c=db.cards.find(x=>x.id===cid);if(!c)return;openSheet('혜택 관리 방식',`<form id="benefit-mode-form" class="benefit-mode-form"><p class="note">혜택 관리 방식만 변경합니다. 기존 실적·정기 입력·지급 기록은 삭제되지 않아요.</p><label class="formlabel">혜택 유형</label><div class="benefit-mode-options" role="radiogroup" aria-label="혜택 유형"><label class="benefit-mode-option"><input type="radio" name="mode" value="balance" ${benefitMode(c)==='balance'?'checked':''}><span class="mode-icon" aria-hidden="true">▤</span><span class="mode-copy"><strong>할인 혜택</strong><small>달성한 실적 구간의 할인 혜택이 2개월 뒤 자동 등록되고, 카드 사용 시 차감돼요.</small></span></label><label class="benefit-mode-option"><input type="radio" name="mode" value="discount" ${benefitMode(c)==='discount'?'checked':''}><span class="mode-icon mode-icon-discount" aria-hidden="true">%</span><span class="mode-copy"><strong>청구 달성형</strong><small>목표 실적 달성 시 해당 구간의 할인 혜택 금액이 자동 기록돼요.</small></span></label></div><p class="mode-note">카드별 혜택 방식에 따라 관리 방법이 달라집니다. 언제든 변경할 수 있어요.</p><div class="actions"><button class="primary" type="submit">유형 저장</button><button type="button" class="secondary" id="cancel-benefit-mode">취소</button></div></form>`);$('#cancel-benefit-mode').onclick=()=>cardDetail(cid,m);bindForm(f=>{c.benefitMode=v(f,'mode');save();cardDetail(cid,m)})}
@@ -504,12 +500,12 @@ function cardDetail(cid,m=month()){
  if(benefitMode(c)==='balance'){
   $('#benefit-usage-form')?.addEventListener('submit',e=>{
    e.preventDefault();const entered=readAmount(e.currentTarget,'benefitUsed');
-   if(entered===null){alert('사용 실적에 올바른 금액을 입력해 줘.');return}
-   const prior=benefitUsageMonth(cid,m),balance=balanceLedger(c);
-   if(entered>prior+balance.remaining){alert('자동 계산된 잔여 혜택보다 사용 실적이 많아요. 과거 실적 및 혜택 내역을 확인해 줘.');return}
+   if(entered===null){alert('사용한 혜택 금액을 올바르게 입력해 줘.');return}
+   const balance=balanceLedger(c,m);
+   if(entered>balance.credited){alert('선택한 달의 지급 혜택보다 사용액이 많아요. 2개월 전 실적과 혜택 구간을 확인해 줘.');return}
    benefitUsageRecords[benefitKey(cid,m)]={amount:entered,updatedAt:new Date().toISOString()};
    saveBenefitUsage();const scroll=body.scrollTop;cardDetail(cid,m);body.scrollTop=scroll;
-   const status=$('#benefit-usage-status');if(status)status.textContent='✓ 사용 실적 저장 완료 · 공유 동기화 중';
+   const status=$('#benefit-usage-status');if(status)status.textContent='✓ 혜택 사용액 저장 완료 · 공유 동기화 중';
   });
  }
 }
