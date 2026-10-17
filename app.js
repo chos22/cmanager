@@ -22,7 +22,23 @@ const cardBenefits=cid=>db.benefits.filter(x=>x.cardID===cid);
 const usageMonth=u=>String(u.date||'').slice(0,7);
 function stats(cid,m){const ex=monthExpenses(cid,m),old=legacy(cid,m),be=cardBenefits(cid),bid=new Set(be.map(x=>x.id)),us=db.usages.filter(x=>bid.has(x.benefitID)&&usageMonth(x)===m),total=ex.length?sum(ex,'amount'):(old?.spending||0),eligible=ex.length?sum(ex.filter(e=>!e.excluded),'amount'):(old?.spending||0),used=us.length?sum(us,'amount'):(old?.benefitUsed||0);return{total,eligible,excluded:ex.length?sum(ex.filter(e=>e.excluded),'amount'):0,used}}
 function sum(items,k){return items.reduce((s,x)=>s+(Number(x[k])||0),0)}
-function render(){const m=month();$('#current-month').textContent=monthLabel(m)+' 이용 현황';$('#card-count').textContent=db.cards.length+'개';$('#card-achieved').textContent=db.cards.filter(c=>stats(c.id,m).eligible>=c.target).length+' / '+db.cards.length;$('#total-benefits').textContent=won(db.cards.reduce((s,c)=>s+Math.max(0,c.benefitLimit-stats(c.id,m).used),0));const area=$('#cards');area.innerHTML=db.cards.length?db.cards.map((c,i)=>{const st=stats(c.id,m),pct=c.target?Math.min(100,Math.round(st.eligible/c.target*100)):0,col=colors[i%colors.length];return `<article class="card"><div class="cardtop"><div class="cardico" style="background:${col}">${icons[i%icons.length]}</div><button class="tap" data-open-card="${esc(c.id)}"><div class="cardname">${esc(c.name)}</div><div class="sub">목표 실적 ${won(c.target)}</div></button><span class="pill">${pct>=100?'달성 완료':'진행 중'}</span></div><button class="tap" style="width:100%;margin-top:19px" data-open-card="${esc(c.id)}"><div class="row"><span class="label">이번 달 실적 인정 금액</span><b style="color:${col}">${pct}%</b></div><div class="progress"><div style="width:${pct}%;background:${col}"></div></div><div class="row"><b>${won(st.eligible)}</b><span class="label">${pct>=100?'목표 달성':won(Math.max(0,c.target-st.eligible))+' 남음'}</span></div></button><div class="benefits"><div class="benefitbox">사용 혜택<b>${won(st.used)}</b></div><div class="benefitbox" style="color:${col}">남은 혜택<b>${won(Math.max(0,c.benefitLimit-st.used))}</b></div></div><div class="actions"><button class="secondary" data-open-card="${esc(c.id)}">결제·혜택 관리</button><button class="danger" data-delete-card="${esc(c.id)}">카드 삭제</button></div></article>`}).join(''):'<div class="empty">💳<h3>등록된 카드가 없어요</h3><p>카드 추가 버튼으로 시작하세요.</p></div>'}
+function render(){
+  const m=month();
+  $('#current-month').textContent=monthLabel(m)+' 이용 현황';
+  $('#card-count').textContent=db.cards.length+'개';
+  $('#card-achieved').textContent=db.cards.filter(c=>stats(c.id,m).eligible>=c.target).length+' / '+db.cards.length;
+  $('#total-benefits').textContent=won(db.cards.reduce((s,c)=>s+Math.max(0,c.benefitLimit-stats(c.id,m).used),0));
+  const area=$('#cards');
+  area.innerHTML=db.cards.length?db.cards.map((c,i)=>{
+    const st=stats(c.id,m),pct=c.target?Math.min(100,Math.round(st.eligible/c.target*100)):0,col=colors[i%colors.length];
+    return `<article class="card card-selectable" data-card-id="${esc(c.id)}" tabindex="0" role="button" aria-label="${esc(c.name)} 결제 및 혜택 관리. 길게 누르면 카드 관리 메뉴">
+      <div class="cardtop"><div class="cardico" style="background:${col}">${icons[i%icons.length]}</div><div class="tap"><div class="cardname">${esc(c.name)}</div><div class="sub">목표 실적 ${won(c.target)}</div></div><span class="pill">${pct>=100?'달성 완료':'진행 중'}</span></div>
+      <div class="card-summary"><div class="row"><span class="label">이번 달 실적 인정 금액</span><b style="color:${col}">${pct}%</b></div><div class="progress"><div style="width:${pct}%;background:${col}"></div></div><div class="row"><b>${won(st.eligible)}</b><span class="label">${pct>=100?'목표 달성':won(Math.max(0,c.target-st.eligible))+' 남음'}</span></div></div>
+      <div class="benefits"><div class="benefitbox">사용 혜택<b>${won(st.used)}</b></div><div class="benefitbox" style="color:${col}">남은 혜택<b>${won(Math.max(0,c.benefitLimit-st.used))}</b></div></div>
+    </article>`;
+  }).join(''):'<div class="empty">💳<h3>등록된 카드가 없어요</h3><p>카드 추가 버튼으로 시작하세요.</p></div>';
+}
+
 const modal=$('#modal'),title=$('#sheet-title'),body=$('#sheet-body');
 function openSheet(t,html){title.textContent=t;body.innerHTML=html;modal.hidden=false;document.body.style.overflow='hidden';body.scrollTop=0}
 function closeSheet(){modal.hidden=true;document.body.style.overflow='';body.innerHTML=''}
@@ -32,6 +48,35 @@ const dateInput=(name,value=day())=>`<label class="formlabel">날짜</label><inp
 const numberInput=(label,name,value='')=>`<label class="formlabel">${label}</label><input name="${name}" type="number" inputmode="numeric" min="0" step="1" value="${esc(value)}" required>`;
 function bindForm(fn){const f=body.querySelector('form');f?.addEventListener('submit',e=>{e.preventDefault();fn(f)})}
 function cardAdd(){openSheet('카드 추가',`<form><label class="formlabel">카드 이름</label><input name="name" placeholder="예: 롯데카드" maxlength="80" required>${numberInput('목표 실적 (원)','target')}${numberInput('월 최대 혜택 (원)','limit')}<div class="actions"><button class="primary" type="submit">카드 저장</button></div></form>`);bindForm(f=>{const name=v(f,'name');if(!name)return;db.cards.push({id:id(),name,target:numeric(f,'target'),benefitLimit:numeric(f,'limit')});save();closeSheet()})}
+// Rename in place: preserve the card UUID referenced by expenses, monthly records, and benefits.
+function cardRename(cid){
+  const card=db.cards.find(c=>c.id===cid);
+  if(!card)return;
+  openSheet('카드 이름 수정',`<form><label class="formlabel">카드 이름</label><input name="name" maxlength="80" required value="${esc(card.name)}"><p class="note">이름만 바뀌고 결제 내역, 월별 기록, 혜택 정보는 그대로 유지돼요.</p><div class="actions"><button class="primary" type="submit">이름 저장</button><button class="secondary" type="button" id="cancel-rename">취소</button></div></form>`);
+  $('#cancel-rename').onclick=closeSheet;
+  bindForm(f=>{const name=v(f,'name');if(!name){alert('카드 이름을 입력해 줘.');return;}card.name=name;save();cardManage(cid);});
+}
+// Only moves the item in the existing array. All card IDs and related data remain unchanged.
+function cardManage(focusID){
+  const list=db.cards.map((c,i)=>`<div class="manage-item${c.id===focusID?' is-focused':''}">
+      <div class="manage-header"><div class="manage-icon" style="background:${colors[i%colors.length]}">${icons[i%icons.length]}</div><div class="manage-title"><b>${esc(c.name)}</b><small>목표 실적 ${won(c.target)}</small></div></div>
+      <div class="manage-buttons"><button class="secondary" data-manage-edit="${esc(c.id)}">✎ 이름 수정</button><button class="secondary" data-manage-move="${esc(c.id)}" data-direction="-1" ${i===0?'disabled':''}>↑ 위로</button><button class="secondary" data-manage-move="${esc(c.id)}" data-direction="1" ${i===db.cards.length-1?'disabled':''}>↓ 아래로</button><button class="danger" data-manage-delete="${esc(c.id)}">삭제</button></div>
+    </div>`).join('');
+  openSheet('카드 관리',`<p class="note">여기에서만 카드 이름과 순서를 변경할 수 있어요. 카드의 실적 및 결제 기록은 그대로 유지됩니다.</p>${list||'<p class="empty">등록된 카드가 없어요.</p>'}`);
+  body.querySelectorAll('[data-manage-edit]').forEach(el=>el.onclick=()=>cardRename(el.dataset.manageEdit));
+  body.querySelectorAll('[data-manage-move]').forEach(el=>el.onclick=()=>{const cid=el.dataset.manageMove;moveCard(cid,Number(el.dataset.direction));cardManage(cid)});
+  body.querySelectorAll('[data-manage-delete]').forEach(el=>el.onclick=()=>{
+    if(!confirm('이 카드를 삭제할까요? 과거 월별 기록은 남겨둡니다.'))return;
+    db.cards=db.cards.filter(c=>c.id!==el.dataset.manageDelete);save();cardManage();
+  });
+}
+function moveCard(cid,delta){
+  const i=db.cards.findIndex(c=>c.id===cid);
+  const j=i+delta;
+  if(i<0||j<0||j>=db.cards.length)return;
+  [db.cards[i],db.cards[j]]=[db.cards[j],db.cards[i]];
+  save();
+}
 function cardDetail(cid,m=month()){const c=db.cards.find(x=>x.id===cid);if(!c){closeSheet();return}const st=stats(cid,m),ex=monthExpenses(cid,m).sort((a,b)=>b.date.localeCompare(a.date)),be=cardBenefits(cid),old=legacy(cid,m);
 const expenseList=ex.map(e=>`<div class="item"><div class="row"><div class="itemtitle">${esc(e.merchant)}</div><b>${won(e.amount)}</b></div><div class="row"><span class="note">${esc(e.date)} · ${e.excluded?`<span class="warn">실적 제외: ${esc(e.exclusionReason||'기타')}</span>`:'실적 포함'}</span><button class="danger" data-del-expense="${esc(e.id)}">삭제</button></div></div>`).join('')||'<p class="note">아직 결제 내역이 없어요.</p>';
 const benefitsList=be.map(b=>{const used=sum(db.usages.filter(x=>x.benefitID===b.id&&usageMonth(x)===m),'amount');return `<div class="item"><div class="row"><b>${esc(b.title)} <span class="note">${esc(b.kind)}</span></b><button class="danger" data-del-benefit="${esc(b.id)}">삭제</button></div><div class="row"><span class="note">사용 ${won(used)} · 잔여 ${won(Math.max(0,b.monthlyLimit-used))}</span><button class="secondary" data-add-usage="${esc(b.id)}">사용 기록</button></div></div>`}).join('')||'<p class="note">등록된 카드 혜택이 없어요.</p>';
@@ -53,5 +98,46 @@ function exportBackup(){const out={version:1,createdAt:(Date.now()-APPLE_EPOCH_M
 function validateBackup(x){if(!x||x.version!==1||!['cards','records','expenses','benefits','usages'].every(k=>Array.isArray(x[k])))throw new Error('지원되지 않는 백업 파일이야. 기존 카드관리 앱의 JSON 파일인지 확인해 줘.');for(const c of x.cards){if(typeof c.id!=='string'||typeof c.name!=='string'||!Number.isFinite(c.target)||!Number.isFinite(c.benefitLimit))throw Error('카드 정보 형식이 잘못됐어')}for(const e of x.expenses){if(typeof e.id!=='string'||typeof e.cardID!=='string'||typeof e.merchant!=='string'||!Number.isFinite(e.amount))throw Error('결제 기록 형식이 잘못됐어')}for(const r of x.records){if(typeof r.cardID!=='string'||typeof r.month!=='string'||!Number.isFinite(r.spending)||!Number.isFinite(r.benefitUsed))throw Error('월별 기록 형식이 잘못됐어')}for(const b of x.benefits){if(typeof b.id!=='string'||typeof b.cardID!=='string'||typeof b.title!=='string'||!Number.isFinite(b.monthlyLimit))throw Error('혜택 정보 형식이 잘못됐어')}for(const u of x.usages){if(typeof u.id!=='string'||typeof u.benefitID!=='string'||!Number.isFinite(u.amount))throw Error('혜택 사용 기록 형식이 잘못됐어')}}
 function importBackup(file){if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const x=JSON.parse(reader.result);validateBackup(x);const next={cards:x.cards,records:x.records,expenses:x.expenses.map(e=>({...e,date:fromSwiftDate(e.date)})),benefits:x.benefits,usages:x.usages.map(u=>({...u,date:fromSwiftDate(u.date)}))};if(confirm(`백업 파일에 카드 ${next.cards.length}개, 결제 내역 ${next.expenses.length}건이 있어요.\n\n현재 웹앱의 모든 기록을 백업 파일의 내용으로 교체할까요?`)){db=next;save();closeSheet();alert('복원했어. 현재 카드와 기록을 확인해 줘.')}}catch(e){alert('백업 복원에 실패했어.\n'+e.message)}};reader.onerror=()=>alert('파일을 읽지 못했어.');reader.readAsText(file)}
 function backup(){openSheet('백업 및 복원',`<div class="panel"><h3>iCloud Drive 파일 백업</h3><p class="note">카드, 월별 기록, 결제 내역, 혜택과 사용 기록을 하나의 JSON 파일로 저장해요. 앱 파일은 GitHub에 있지만 개인 기록은 이 기기에만 저장돼요.</p><div class="actions"><button class="primary" id="export">⬆ 백업 파일 만들기</button></div><p class="note">iPhone Safari에서 다운로드한 파일은 파일 앱의 '다운로드'에서 찾을 수 있어요. 필요하면 파일 앱에서 iCloud Drive로 이동해 줘.</p></div><div class="panel"><h3>백업에서 복원</h3><label class="formlabel">기존 Swift 앱 또는 웹앱에서 만든 JSON 백업 선택</label><input type="file" id="import" accept=".json,application/json"><p class="warn note">복원 시 웹앱의 현재 데이터가 모두 교체돼요. 현재 데이터도 먼저 백업해 줘.</p></div><div class="panel"><h3>주의사항</h3><p class="note">이 웹앱의 데이터는 아이폰의 웹 저장 공간에 보관돼요. Safari 데이터 삭제나 앱 제거 시 사라질 수 있으므로 정기적으로 JSON 백업을 만들어 iCloud Drive에 보관해 줘. 같은 주소여도 부부의 아이폰은 각자의 데이터를 사용해요.</p></div>`);$('#export').onclick=exportBackup;$('#import').onchange=e=>importBackup(e.target.files[0])}
-$('#add-card').onclick=cardAdd;$('#history-open').onclick=history;$('#backup-open').onclick=backup;modal.addEventListener('click',e=>{if(e.target.closest('[data-close]'))closeSheet()});$('#cards').addEventListener('click',e=>{const open=e.target.closest('[data-open-card]'),del=e.target.closest('[data-delete-card]');if(open)cardDetail(open.dataset.openCard);if(del&&confirm('카드를 삭제할까요? 과거 기록은 남겨둡니다.')){db.cards=db.cards.filter(c=>c.id!==del.dataset.deleteCard);save()}});
+$('#add-card').onclick=cardAdd;
+$('#manage-cards').onclick=()=>cardManage();
+$('#history-open').onclick=history;
+$('#backup-open').onclick=backup;
+modal.addEventListener('click',e=>{if(e.target.closest('[data-close]'))closeSheet()});
+const cardsElement=$('#cards');
+let pressTimer=null, pressedID=null, pressStart=null, suppressClick=false;
+function clearPress(){if(pressTimer!==null){clearTimeout(pressTimer);pressTimer=null;}pressedID=null;pressStart=null;}
+cardsElement.addEventListener('pointerdown',e=>{
+  const card=e.target.closest('[data-card-id]');
+  if(!card||e.button!==0)return;
+  clearPress();pressedID=card.dataset.cardId;
+  pressStart={x:e.clientX,y:e.clientY};
+  pressTimer=setTimeout(()=>{
+    if(!pressedID)return;
+    const selected=pressedID;
+    clearPress();suppressClick=true;
+    cardManage(selected);
+  },650);
+});
+cardsElement.addEventListener('pointermove',e=>{
+  if(pressStart&&Math.hypot(e.clientX-pressStart.x,e.clientY-pressStart.y)>12)clearPress();
+});
+['pointerup','pointercancel','pointerleave'].forEach(type=>cardsElement.addEventListener(type,clearPress));
+cardsElement.addEventListener('contextmenu',e=>{
+  const card=e.target.closest('[data-card-id]');
+  if(!card)return;
+  e.preventDefault();clearPress();suppressClick=true;
+  if(modal.hidden)cardManage(card.dataset.cardId);
+});
+cardsElement.addEventListener('click',e=>{
+  const card=e.target.closest('[data-card-id]');
+  if(!card)return;
+  if(suppressClick){suppressClick=false;return;}
+  cardDetail(card.dataset.cardId);
+});
+cardsElement.addEventListener('keydown',e=>{
+  if(e.target.matches('[data-card-id]')&&(e.key==='Enter'||e.key===' ')){
+    e.preventDefault();cardDetail(e.target.dataset.cardId);
+  }
+});
+
 render();if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
