@@ -17,3 +17,12 @@
 .manage-buttons button{font-size:12px;padding:9px 11px}
 .manage-buttons .danger{margin-left:auto}
 @media(max-width:390px){.sectiontitle{align-items:flex-start}.section-buttons{max-width:180px}.manage-buttons button{flex:1 1 auto}.manage-buttons .danger{flex:0 1 auto}}
+
+/* Mobile-friendly management controls */
+.sectiontitle{align-items:flex-start;gap:12px}
+.sectiontitle>div:first-child{min-width:0;flex:1}
+.section-buttons{display:flex;flex-direction:column;align-items:stretch;flex-wrap:nowrap;min-width:110px;gap:7px}
+.section-buttons button{font-size:12px;line-height:1.2;white-space:nowrap;padding:10px 11px}
+.cardtop{min-width:0}.tap{min-width:0}.cardname{overflow-wrap:anywhere}
+.card-summary .row{flex-wrap:wrap}
+@media(min-width:520px){.section-buttons{flex-direction:row}.section-buttons button{font-size:13px}}

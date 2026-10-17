@@ -99,7 +99,13 @@ function validateBackup(x){if(!x||x.version!==1||!['cards','records','expenses',
 function importBackup(file){if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const x=JSON.parse(reader.result);validateBackup(x);const next={cards:x.cards,records:x.records,expenses:x.expenses.map(e=>({...e,date:fromSwiftDate(e.date)})),benefits:x.benefits,usages:x.usages.map(u=>({...u,date:fromSwiftDate(u.date)}))};if(confirm(`백업 파일에 카드 ${next.cards.length}개, 결제 내역 ${next.expenses.length}건이 있어요.\n\n현재 웹앱의 모든 기록을 백업 파일의 내용으로 교체할까요?`)){db=next;save();closeSheet();alert('복원했어. 현재 카드와 기록을 확인해 줘.')}}catch(e){alert('백업 복원에 실패했어.\n'+e.message)}};reader.onerror=()=>alert('파일을 읽지 못했어.');reader.readAsText(file)}
 function backup(){openSheet('백업 및 복원',`<div class="panel"><h3>iCloud Drive 파일 백업</h3><p class="note">카드, 월별 기록, 결제 내역, 혜택과 사용 기록을 하나의 JSON 파일로 저장해요. 앱 파일은 GitHub에 있지만 개인 기록은 이 기기에만 저장돼요.</p><div class="actions"><button class="primary" id="export">⬆ 백업 파일 만들기</button></div><p class="note">iPhone Safari에서 다운로드한 파일은 파일 앱의 '다운로드'에서 찾을 수 있어요. 필요하면 파일 앱에서 iCloud Drive로 이동해 줘.</p></div><div class="panel"><h3>백업에서 복원</h3><label class="formlabel">기존 Swift 앱 또는 웹앱에서 만든 JSON 백업 선택</label><input type="file" id="import" accept=".json,application/json"><p class="warn note">복원 시 웹앱의 현재 데이터가 모두 교체돼요. 현재 데이터도 먼저 백업해 줘.</p></div><div class="panel"><h3>주의사항</h3><p class="note">이 웹앱의 데이터는 아이폰의 웹 저장 공간에 보관돼요. Safari 데이터 삭제나 앱 제거 시 사라질 수 있으므로 정기적으로 JSON 백업을 만들어 iCloud Drive에 보관해 줘. 같은 주소여도 부부의 아이폰은 각자의 데이터를 사용해요.</p></div>`);$('#export').onclick=exportBackup;$('#import').onchange=e=>importBackup(e.target.files[0])}
 $('#add-card').onclick=cardAdd;
-$('#manage-cards').onclick=()=>cardManage();
+// Bind through the document as well, so the menu remains reachable after UI updates.
+document.addEventListener('click', e => {
+  if (e.target.closest('#manage-cards')) {
+    e.preventDefault();
+    cardManage();
+  }
+});
 $('#history-open').onclick=history;
 $('#backup-open').onclick=backup;
 modal.addEventListener('click',e=>{if(e.target.closest('[data-close]'))closeSheet()});
@@ -140,4 +146,14 @@ cardsElement.addEventListener('keydown',e=>{
   }
 });
 
-render();if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));
+render();
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', async () => {
+    try {
+      const registration = await navigator.serviceWorker.register('./service-worker.js?v=20261017-4', {updateViaCache:'none'});
+      await registration.update();
+    } catch (error) {
+      console.warn('오프라인 캐시 설정 실패', error);
+    }
+  });
+}
