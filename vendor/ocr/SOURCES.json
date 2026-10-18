@@ -1,0 +1,22 @@
+[
+  {
+    "package": "tesseract.js",
+    "version": "7.0.0",
+    "integrity": "sha512-exPBkd+z+wM1BuMkx/Bjv43OeLBxhL5kKWsz/9JY+DXcXdiBjiAch0V49QR3oAJqCaL5qURE0vx9Eo+G5YE7mA=="
+  },
+  {
+    "package": "tesseract.js-core",
+    "version": "7.0.0",
+    "integrity": "sha512-WnNH518NzmbSq9zgTPeoF8c+xmilS8rFIl1YKbk/ptuuc7p6cLNELNuPAzcmsYw450ca6bLa8j3t0VAtq435Vw=="
+  },
+  {
+    "package": "@tesseract.js-data/kor",
+    "version": "1.0.0",
+    "integrity": "sha512-tepYhsYiRJ8E44R27MHxVteEDDLfYQxuvM6u4JlEHcCYqwpefvI5TGzoMgB67kunOvtyEJYtT5zfJ/6R6FVU9w=="
+  },
+  {
+    "package": "@tesseract.js-data/eng",
+    "version": "1.0.0",
+    "integrity": "sha512-mbTumm6KQPUHyzTPQaF3ObXYnx0SqqfV2nabqFVQBwD6Kl7PhGSLSzOlfFTWy0P3BjghaSKA2W9GB19Jk+ZcTg=="
+  }
+]

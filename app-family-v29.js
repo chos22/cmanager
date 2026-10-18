@@ -462,7 +462,7 @@ function cardDetail(cid,m=month()){
  const checkboxItems=st.recurringItems.map(e=>`<label class="checkrow"><input type="checkbox" data-in-base="${esc(e.rule.id)}" ${e.included?'checked':''}> <span>${esc(e.rule.title)} ${won(e.amount)} — 카드사 기준 실적에 이미 포함됨</span></label>`).join('');
  openSheet(c.name,` <div class="panel"><div class="row"><b>${monthLabel(m)} 실적 · 혜택</b>${monthPickerTrigger("detail-month",m)}</div>
  <p class="note">카드사 앱에서 확인한 <b>인정 실적 누계</b>를 기준 실적으로 입력해요. 이미 누계에 포함된 정기 항목에는 체크해야 중복 합산되지 않아요.</p>
- <form id="manual-form">${amountControl('카드사 기준 인정 실적','eligible',st.base,10000)}
+ <form id="manual-form">${window.PerformancePhoto?window.PerformancePhoto.markup():''}${amountControl('카드사 기준 인정 실적','eligible',st.base,10000)}
  ${checkboxItems?`<div class="includes-list"><b>중복 방지 체크</b>${checkboxItems}</div>`:''}
  <div class="actions"><button class="primary" type="submit">실적 저장</button></div><p class="note" id="manual-save-status" role="status">입력한 실적과 중복 방지 설정을 함께 저장해요.</p></form>
  <div class="manual-summary"><div class="row"><span>카드사 기준 실적</span><strong>${won(st.base)}</strong></div><div class="row"><span>추가할 정기 실적</span><strong>${won(st.recurringAmount)}</strong></div><div class="row"><span>예상 인정 실적</span><strong class="highlight">${won(st.eligible)}</strong></div><div class="row"><span>선택 목표까지</span><strong>${won(ts.remaining)}</strong></div></div></div>
@@ -472,6 +472,12 @@ function cardDetail(cid,m=month()){
  <p class="note">실적·혜택 구간은 한 번 설정하고, 원하는 목표 구간을 눌러 변경할 수 있어요.</p>${tierLines(c,st.eligible)}</div>
  <div class="panel"><div class="row"><h3>정기 실적 관리</h3><button class="secondary" id="open-regular">설정·입력</button></div><p class="note">보험료는 지정일부터 예상 실적으로 자동 반영하고, 관리비·가스요금은 입력할 때 반영해요.</p></div>`);
  bindAmountControls();
+ const photoRoot=body.querySelector('[data-photo-root]');
+ if(photoRoot)window.PerformancePhoto.mount(photoRoot,{cardName:c.name,month:m,onApply:amount=>{
+  const field=body.querySelector('#manual-form [name="eligible"]');
+  field.value=amount.toLocaleString('ko-KR');
+  field.dispatchEvent(new Event('input',{bubbles:true}));
+ }});
  body.querySelectorAll('[name="detailBenefitMode"]').forEach(input=>input.addEventListener('change',()=>{
   if(!input.checked)return;const scroll=body.scrollTop;
   saveBenefitMode(cid,input.value);
