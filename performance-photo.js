@@ -180,7 +180,7 @@
  function markup(){return `<div class="photo-import" data-photo-root>
   <button class="secondary" data-photo-open type="button">사진에서 실적 가져오기</button>
   <input data-photo-file type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif" hidden>
-  <p class="note" data-photo-status role="status" aria-live="polite">사진은 기기 안에서 읽으며 서버에 저장하지 않아요. 처음에는 인터넷이 필요해요. · 영역 선택·인식 확인</p>
+  <p class="note" data-photo-status role="status" aria-live="polite">사진은 기기 안에서 읽으며 서버에 저장하지 않아요. 처음에는 인터넷이 필요해요.</p>
   <div data-photo-content hidden>
    <div class="actions"><button data-photo-cancel type="button" class="secondary">사진 선택 취소</button></div>
    <div class="photo-preview-wrap"><img data-photo-preview class="photo-preview" alt="선택한 카드사 실적 화면" hidden><div data-photo-selection class="photo-selection" hidden></div></div>
