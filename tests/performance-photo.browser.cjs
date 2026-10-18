@@ -22,20 +22,15 @@ const base=process.env.CMANAGER_TEST_URL||'http://127.0.0.1:8010';
  await page.goto(base);
  for(const sample of samples){
   await page.evaluate(()=>cardDetail('a','2026-10'));
-  await page.locator('[data-photo-root] summary').click();
+
   const before=await page.evaluate(()=>JSON.stringify(localRows()));
   await page.evaluate(()=>{if(!window.testParseInstalled){window.testParseInstalled=true;const parse=PerformancePhotoParser.parse;PerformancePhotoParser.parse=text=>{window.testOcrText=text;return parse(text)}}});
   await page.locator('[data-photo-file]').setInputFiles(path.join(output,'photo-'+sample.name+'.png'));
   await page.locator('[data-photo-result]').waitFor({state:'visible',timeout:90000});
-  const value=await page.locator('[data-photo-amount]').inputValue();
-  console.log(sample.name,'OCR amount:',value,'status:',await page.locator('[data-photo-status]').innerText());
-  if(Number(value.replace(/,/g,''))!==sample.expected)console.log('OCR text:',await page.evaluate(()=>window.testOcrText));assert.equal(Number(value.replace(/,/g,'')),sample.expected);
+  const candidate=page.locator('[data-photo-candidates] button').filter({hasText:sample.expected.toLocaleString('ko-KR')+'원'});
+  assert.equal(await candidate.count(),1);
   assert.equal(await page.evaluate(()=>JSON.stringify(localRows())),before);
-  assert.equal(await page.locator('[data-photo-apply]').isDisabled(),true);
-  await page.locator('[data-photo-confirm]').check();await page.locator('[data-photo-apply]').click();
-  assert.equal(Number((await page.locator('[name=eligible]').inputValue()).replace(/,/g,'')),sample.expected);
-  assert.equal(await page.evaluate(()=>JSON.stringify(localRows())),before);
-  await page.locator('#manual-form button[type=submit]').click();
+  await candidate.click();
   assert.equal(await page.evaluate(()=>manualRecords['a|2026-10'].eligible),sample.expected);
   assert.equal(await page.evaluate(()=>manualRecords['a|2026-10'].benefitRemaining),1234);
   assert.equal(await page.evaluate(()=>manualRecords['b|2026-10'].eligible),222222);
@@ -43,7 +38,7 @@ const base=process.env.CMANAGER_TEST_URL||'http://127.0.0.1:8010';
  }
  assert.deepEqual(external,[]);assert.deepEqual(errors,[]);
  await page.reload();assert.equal(await page.evaluate(()=>manualRecords['a|2026-10'].eligible),345700);
- console.log('PASS real OCR for 3 generated Korean screenshots; confirmation before write; replacement not addition; other records preserved; reload; no external requests or browser errors.');
+ console.log('PASS real OCR for 3 generated Korean screenshots; candidate selection saves immediately; replacement not addition; other records preserved; reload; no external requests or browser errors.');
  await context.close();
  }finally{await browser.close();fs.rmSync(output,{recursive:true,force:true})}
 })().catch(e=>{console.error(e);process.exit(1)});

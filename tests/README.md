@@ -25,10 +25,10 @@ node tests/performance-photo-safety.browser.cjs
 
 Set `CMANAGER_TEST_URL` to use another local test server. The first check renders
 three Korean sample-layout images and runs the real, vendored OCR engine. It checks
-remaining-amount/credit-limit confusion, duplicated benefit rows, review before
+remaining-amount/credit-limit confusion, duplicated benefit rows, no writes before amount selection, one-click
 save, replacement instead of addition, retained records and reload persistence.
 The second uses a fake OCR worker to deterministically exercise wrong-month,
-amount-edit, cancellation, engine-failure and stale-result paths. Neither check
+one-click save, cancellation, engine-failure and stale-result paths. Neither check
 proves recognition accuracy on all screenshots or on an actual iPhone.
 
 The source screenshots supplied in chat are not stored in the repository. The text

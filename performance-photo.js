@@ -1,4 +1,4 @@
-/* Screenshots and OCR text stay in memory. Only the existing confirmed manual form saves. */
+/* Screenshots and OCR text stay in memory. Selecting a recognized amount submits the existing manual form. */
 (function(){
  'use strict';
  let enginePromise;
@@ -15,7 +15,7 @@
  }
  function mount(root,{cardName,month,onApply}){
   const q=selector=>root.querySelector(selector),file=q('[data-photo-file]'),status=q('[data-photo-status]');
-  const result=q('[data-photo-result]'),amount=q('[data-photo-amount]'),check=q('[data-photo-confirm]');
+  const result=q('[data-photo-result]'),content=q('[data-photo-content]');
   let generation=0,worker=null,url=null,disposed=false;
   const setStatus=text=>{status.textContent=text};
   function stop(){
@@ -27,23 +27,20 @@
   observer.observe(document.body,{childList:true,subtree:true});
   q('[data-photo-card]').textContent=cardName;
   q('[data-photo-month]').textContent=month;
-  root.addEventListener('keydown',event=>{if(event.key==='Enter'&&event.target.matches('input'))event.preventDefault()});
-  amount.addEventListener('input',()=>{check.checked=false;q('[data-photo-apply]').disabled=true});
-  check.addEventListener('change',()=>{q('[data-photo-apply]').disabled=!check.checked});
-  q('[data-photo-apply]').addEventListener('click',()=>{
-   const raw=amount.value.replace(/,/g,'').trim(),value=Number(raw);
-   if(!check.checked)return;
-   if(!/^\d+$/.test(raw)||!Number.isSafeInteger(value)){
-    setStatus('실적 금액을 0 이상의 정수로 입력해 주세요.');amount.focus();return;
-   }
-   onApply(value);
-   setStatus('입력란에 옮겼습니다. 정기 실적 중복 여부를 확인하고 ‘실적 저장’을 눌러 주세요.');
+  function clearPhoto(){
+   generation++;stop();
+   content.hidden=true;result.hidden=true;file.value='';
+   q('[data-photo-preview]').hidden=true;q('[data-photo-preview]').removeAttribute('src');
+   q('[data-photo-candidates]').replaceChildren();
+  }
+  q('[data-photo-open]').addEventListener('click',()=>file.click());
+  q('[data-photo-cancel]').addEventListener('click',()=>{
+   clearPhoto();setStatus('사진 선택을 취소했습니다. 기존 저장 기록은 바뀌지 않았어요.');
   });
   file.addEventListener('change',async()=>{
-   const selected=file.files[0],job=++generation;
-   stop();result.hidden=true;check.checked=false;q('[data-photo-apply]').disabled=true;
-   q('[data-photo-preview]').hidden=true;q('[data-photo-preview]').removeAttribute('src');
+   const selected=file.files[0];
    if(!selected)return;
+   clearPhoto();const job=generation;content.hidden=false;
    if(!/^image\/(?:png|jpeg|webp|heic|heif)$/.test(selected.type)||selected.size>20*1024*1024){
     setStatus('20MB 이하의 스크린샷(PNG·JPEG·WebP)을 선택해 주세요.');file.value='';return;
    }
@@ -72,12 +69,11 @@
     const {data}=await ownWorker.recognize(canvas);
     if(!isCurrent())return;
     const parsed=window.PerformancePhotoParser.parse(data.text);
-    amount.value=parsed.amount===null?'':parsed.amount.toLocaleString('ko-KR');
     const candidates=q('[data-photo-candidates]');candidates.replaceChildren();
     for(const candidate of parsed.candidates){
      const button=document.createElement('button');button.type='button';button.className='secondary small';
      button.textContent=candidate.amount.toLocaleString('ko-KR')+'원';
-     button.addEventListener('click',()=>{amount.value=String(candidate.amount);check.checked=false;q('[data-photo-apply]').disabled=true});
+     button.addEventListener('click',()=>onApply(candidate.amount));
      candidates.append(button);
     }
     const [year,mm]=month.split('-').map(Number),period=parsed.period;
@@ -89,28 +85,28 @@
     q('[data-photo-review]').hidden=!!mismatch;
     result.hidden=false;
     setStatus(mismatch?'위쪽 기준 월을 변경한 뒤 사진을 다시 선택해 주세요.':parsed.amount===null
-     ?'실적 금액을 확정하지 못했습니다. 사진을 보고 후보를 선택하거나 금액을 입력해 주세요.'
-     :'금액을 읽었습니다. 남은 금액·한도가 아닌 인정 실적인지 사진과 비교해 주세요.');
+     ?'인정 실적 금액을 누르면 바로 저장됩니다. 맞는 후보가 없으면 아래 실적 입력란에 직접 입력하고 저장해 주세요.'
+     :'인정 실적 금액을 누르면 바로 저장되고 부부 공유에 반영됩니다.');
    }catch(error){
     if(isCurrent())setStatus('사진을 읽지 못했습니다. 인터넷 연결을 확인하고 실적 부분이 선명한 PNG·JPEG 사진으로 다시 시도하거나 직접 입력해 주세요.');
    }finally{
     if(ownWorker){await ownWorker.terminate().catch(()=>{});if(worker===ownWorker)worker=null}
-    file.value='';
+    if(job===generation)file.value='';
    }
   });
  }
- function markup(){return `<details class="photo-import" data-photo-root><summary>사진에서 실적 가져오기</summary>
-  <p class="note">사진은 이 기기에서 읽고 서버로 보내거나 저장하지 않아요. 처음에는 인식 도구를 내려받기 위해 인터넷이 필요해요.</p>
-  <label class="formlabel">카드사 실적 화면 선택<input data-photo-file type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif"></label>
-  <img data-photo-preview class="photo-preview" alt="선택한 카드사 실적 화면" hidden>
-  <p class="note" data-photo-status role="status" aria-live="polite">실적 금액과 기준 월이 보이는 스크린샷을 선택해 주세요.</p>
-  <div data-photo-result hidden><p class="note" data-photo-period></p><div data-photo-review>
-   <p>반영할 카드: <b data-photo-card></b><br>반영할 기준 월: <b data-photo-month></b></p>
-   <p class="note">사진의 카드와 다르면 닫고 해당 카드를 선택해 주세요. 금액은 기존 실적에 더하지 않고 최신 누계로 바꿉니다.</p>
-   <div class="photo-candidates" data-photo-candidates aria-label="사진에서 읽은 금액 후보"></div>
-   <label class="formlabel">확인한 인정 실적 (원)<input data-photo-amount type="text" inputmode="numeric" autocomplete="off" aria-label="사진에서 확인한 인정 실적"></label>
-   <label class="checkrow"><input data-photo-confirm type="checkbox"><span>사진의 카드·실적 연도와 월·금액이 위 내용과 일치하는지 확인했어요.</span></label>
-   <button data-photo-apply type="button" class="secondary" disabled>확인한 금액을 입력란에 넣기</button>
-  </div></div></details>`}
+ function markup(){return `<div class="photo-import" data-photo-root>
+  <button class="secondary" data-photo-open type="button">사진에서 실적 가져오기</button>
+  <input data-photo-file type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif" hidden>
+  <p class="note" data-photo-status role="status" aria-live="polite">사진은 기기 안에서 읽으며 서버에 저장하지 않아요. 처음에는 인터넷이 필요해요.</p>
+  <div data-photo-content hidden>
+   <div class="actions"><button data-photo-cancel type="button" class="secondary">사진 선택 취소</button></div>
+   <img data-photo-preview class="photo-preview" alt="선택한 카드사 실적 화면" hidden>
+   <div data-photo-result hidden><p class="note" data-photo-period></p><div data-photo-review>
+    <p>반영할 카드: <b data-photo-card></b><br>반영할 기준 월: <b data-photo-month></b></p>
+    <p class="note">카드·기준 월을 확인하세요. 금액을 누르면 바로 저장됩니다. 남은 금액이나 한도는 선택하지 마세요.</p>
+    <div class="photo-candidates" data-photo-candidates aria-label="사진에서 읽은 금액 후보"></div>
+   </div></div>
+  </div></div>`}
  window.PerformancePhoto={mount,markup};
 })();

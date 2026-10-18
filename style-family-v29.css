@@ -443,10 +443,10 @@ button.danger{background:#fff5f5;color:#b9424b;border:1px solid #f0cdd0;border-r
 
 /* Screenshot import stays within the existing manual performance form. */
 .photo-import{margin:16px 0;padding:14px;border:1px solid #b9cbe0;border-radius:12px;background:#f5f9ff}
-.photo-import summary{font-weight:700;cursor:pointer;color:#24578c}
-.photo-import input[type=file]{display:block;max-width:100%;margin-top:8px}
+.photo-import [data-photo-open]{font-weight:700;width:100%}
+.photo-import [hidden]{display:none!important}
 .photo-preview{display:block;max-width:100%;max-height:360px;object-fit:contain;margin:12px auto}
 .photo-preview[hidden]{display:none}
 .photo-candidates{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
 .photo-import button:disabled{opacity:.45;cursor:not-allowed}
-.photo-import .checkrow{align-items:flex-start;line-height:1.5}
+.photo-candidates button[aria-pressed=true]{background:#24578c;color:#fff;border-color:#24578c}

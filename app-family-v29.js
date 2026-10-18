@@ -391,8 +391,8 @@ function renderDueBanner(){
  if(list.length)banner.innerHTML=`<b>🔔 이번 달 정기 실적 입력 대기 ${list.length}건</b><p>${list.slice(0,3).map(x=>esc(x.card.name+' · '+x.rule.title)).join(' / ')}${list.length>3?' 외':''}</p><button type="button" class="secondary small" id="open-pending">금액 입력하기</button>`;
  banner.querySelector('#open-pending')?.addEventListener('click',()=>regularOpen(list[0].card.id));
 }
-const modal=$('#modal'),title=$('#sheet-title'),body=$('#sheet-body');
-function openSheet(t,html){title.textContent=t;body.innerHTML=html;modal.hidden=false;document.body.style.overflow='hidden';body.scrollTop=0}
+const modal=$('#modal'),title=$('#sheet-title'),body=$('#sheet-body'),sheet=modal.querySelector('.sheet');
+function openSheet(t,html){title.textContent=t;body.innerHTML=html;modal.hidden=false;document.body.style.overflow='hidden';sheet.scrollTop=0;modal.scrollTop=0}
 function closeSheet(){modal.hidden=true;document.body.style.overflow='';body.innerHTML=''}
 const numeric=(form,name)=>Math.max(0,Math.round(Number(new FormData(form).get(name))||0));
 const v=(form,name)=>String(new FormData(form).get(name)||'').trim();
@@ -477,11 +477,12 @@ function cardDetail(cid,m=month()){
   const field=body.querySelector('#manual-form [name="eligible"]');
   field.value=amount.toLocaleString('ko-KR');
   field.dispatchEvent(new Event('input',{bubbles:true}));
+  field.form.requestSubmit();
  }});
  body.querySelectorAll('[name="detailBenefitMode"]').forEach(input=>input.addEventListener('change',()=>{
-  if(!input.checked)return;const scroll=body.scrollTop;
+  if(!input.checked)return;const scroll=sheet.scrollTop;
   saveBenefitMode(cid,input.value);
-  cardDetail(cid,m);body.scrollTop=scroll;
+  cardDetail(cid,m);sheet.scrollTop=scroll;
   const notice=$('#mode-save-message');if(notice)notice.textContent='✓ 혜택 유형 저장 완료 · 가족 공유에 반영 중';
  }));
  $('#detail-month').addEventListener('click',()=>showMonthPicker(m,next=>cardDetail(cid,next)));
@@ -497,7 +498,7 @@ function cardDetail(cid,m=month()){
    if(previous){previous.includedInBase=box.checked;previous.updatedAt=new Date().toISOString()}
    else recurringEntries.push({id:rule.id+'|'+m,ruleID:rule.id,month:m,status:'entered',amount:defaultAmount,includedInBase:box.checked,updatedAt:new Date().toISOString()});
   }
-  writeManual();writeRecurring();render();const scroll=body.scrollTop;cardDetail(cid,m);body.scrollTop=scroll;
+  writeManual();writeRecurring();render();const scroll=sheet.scrollTop;cardDetail(cid,m);sheet.scrollTop=scroll;
   const notice=$('#manual-save-status');if(notice){notice.textContent='✓ 실적 저장 완료 · 공유 동기화 중';notice.classList.add('save-ok')}
  });
  body.querySelectorAll('[data-select-goal]').forEach(btn=>btn.onclick=()=>setGoal(cid,Number(btn.dataset.selectGoal),m));
@@ -510,7 +511,7 @@ function cardDetail(cid,m=month()){
    const balance=balanceLedger(c,m);
    if(entered>balance.credited){alert('선택한 달의 지급 혜택보다 사용액이 많아요. 2개월 전 실적과 혜택 구간을 확인해 줘.');return}
    benefitUsageRecords[benefitKey(cid,m)]={amount:entered,updatedAt:new Date().toISOString()};
-   saveBenefitUsage();const scroll=body.scrollTop;cardDetail(cid,m);body.scrollTop=scroll;
+   saveBenefitUsage();const scroll=sheet.scrollTop;cardDetail(cid,m);sheet.scrollTop=scroll;
    const status=$('#benefit-usage-status');if(status)status.textContent='✓ 혜택 사용액 저장 완료 · 공유 동기화 중';
   });
  }
