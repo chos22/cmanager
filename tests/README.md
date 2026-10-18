@@ -24,8 +24,8 @@ node tests/performance-photo-safety.browser.cjs
 ```
 
 Set `CMANAGER_TEST_URL` to use another local test server. The first check renders
-three Korean sample-layout images and runs the real, vendored OCR engine. It checks
-remaining-amount/credit-limit confusion, duplicated benefit rows, no writes before amount selection, one-click
+four Korean sample-layout images (including a small white amount bubble) and runs the real, vendored OCR engine. It checks
+enlarged-bubble recognition, remaining-amount/credit-limit confusion, duplicated benefit rows, no writes before amount selection, one-click
 save, replacement instead of addition, retained records and reload persistence.
 The second uses a fake OCR worker to deterministically exercise wrong-month,
 one-click save, cancellation, engine-failure and stale-result paths. Neither check

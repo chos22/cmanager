@@ -68,7 +68,32 @@
     await ownWorker.setParameters({tessedit_pageseg_mode:'11'});
     const {data}=await ownWorker.recognize(canvas);
     if(!isCurrent())return;
-    const parsed=window.PerformancePhotoParser.parse(data.text);
+    let recognizedText=data.text;
+    // Small text inside a white pill can disappear in full-screen recognition.
+    // Locate those regions by color, enlarge them and read them separately.
+    if(window.PerformancePhotoImage){
+     const probe=document.createElement('canvas'),ratio=Math.min(1,640/canvas.width);
+     probe.width=Math.round(canvas.width*ratio);probe.height=Math.round(canvas.height*ratio);
+     const probeCtx=probe.getContext('2d');probeCtx.drawImage(canvas,0,0,probe.width,probe.height);
+     const bubbles=window.PerformancePhotoImage.findAmountBubbles(probeCtx.getImageData(0,0,probe.width,probe.height));
+     for(const box of bubbles){
+      if(!isCurrent())return;
+      const crop=document.createElement('canvas');
+      const x=Math.max(0,(box.x-3)/ratio),y=Math.max(0,(box.y-3)/ratio);
+      const w=Math.min(canvas.width-x,(box.width+6)/ratio),h=Math.min(canvas.height-y,(box.height+6)/ratio);
+      const zoom=Math.min(4,700/w);crop.width=Math.round(w*zoom);crop.height=Math.round(h*zoom);
+      const cropCtx=crop.getContext('2d');cropCtx.fillStyle='#fff';cropCtx.fillRect(0,0,crop.width,crop.height);
+      cropCtx.drawImage(canvas,x,y,w,h,0,0,crop.width,crop.height);
+      const pixels=cropCtx.getImageData(0,0,crop.width,crop.height);
+      for(let i=0;i<pixels.data.length;i+=4){const gray=(pixels.data[i]+pixels.data[i+1]+pixels.data[i+2])/3;pixels.data[i]=pixels.data[i+1]=pixels.data[i+2]=gray>180?255:0}
+      cropCtx.putImageData(pixels,0,0);
+      await ownWorker.setParameters({tessedit_pageseg_mode:'7'});
+      const extra=await ownWorker.recognize(crop);
+      if(!isCurrent())return;
+      recognizedText+='\n확대 영역\n'+extra.data.text;
+     }
+    }
+    const parsed=window.PerformancePhotoParser.parse(recognizedText);
     const candidates=q('[data-photo-candidates]');candidates.replaceChildren();
     for(const candidate of parsed.candidates){
      const button=document.createElement('button');button.type='button';button.className='secondary small';

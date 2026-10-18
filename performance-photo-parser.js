@@ -7,7 +7,7 @@
  'use strict';
  const compact=text=>text.replace(/\s/g,'');
  const positive=/(?:현재|인정|누적|합산|당월|이번달)실적|실적(?:금액|누계)|이용금액/;
- const excluded=/잔여한도|이용한도|잔여실적|남은금액|부족금액|채우면|더쓰면|추가이용|목표금액|할인금액|결제예정금액|청구금액/;
+ const excluded=/잔여한도|이용한도|잔여실적|남은금액|부족금액|채우면|더쓰면|추가이용|목표금액|할인금액|혜택금액|할인한도|결제예정금액|청구금액/;
  function parse(text){
   const lines=String(text||'').normalize('NFKC').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const candidates=new Map();
@@ -17,6 +17,7 @@
    const regex=/(?:\d{1,3}(?:[ ,]\s*\d{3})+|\d+)\s*[원운]/g;
    for(const match of line.matchAll(regex)){
     if(excluded.test(clean)||(!positive.test(clean)&&excluded.test(previous)))continue;
+    if(/^\s*(?:할인|혜택)/.test(line.slice(match.index+match[0].length)))continue;
     const amount=Number(match[0].replace(/[,\s원운]/g,''));
     if(!Number.isSafeInteger(amount)||amount<0)continue;
     // Avoid matching the trailing digits of decimal or 만원 amounts.

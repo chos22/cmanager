@@ -39,3 +39,15 @@ test('common OCR currency misread is tolerated, malformed number groups are not'
  assert.equal(parse('현재 실적\n136 823 원').amount,136823);
  assert.equal(parse('현재 실적\n136,82원').amount,null);
 });
+
+test('achieved-performance bubble is not confused with discounts or next reward month',()=>{
+ const result=parse('이번 10월의 실적을 달성했어요\n다음 11월 혜택을 듬뿍 누리세요!\n합산기간 2026.10.1 ~ 10.31\n852,877원\n0원\n40만원\n80만원\n1~24개월 이내 18,000원 할인 20,000원 할인\n25개월 이후 8,000원 할인 10,000원 할인');
+ assert.equal(result.amount,852877);
+ assert.deepEqual(result.period,{year:2026,month:10});
+ assert.deepEqual(result.candidates.map(c=>c.amount),[852877]);
+});
+
+test('a separate enlarged bubble is not attributed to a preceding reward total',()=>{
+ const result=parse('이번달 총 혜택 금액\n18,000원\n확대 영역\n852,877원');
+ assert.deepEqual(result.candidates.map(c=>c.amount),[852877]);
+});
