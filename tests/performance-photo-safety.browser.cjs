@@ -28,5 +28,31 @@ await page.evaluate(()=>{cardDetail('test','2026-10');sheet.scrollTop=500});
 assert.ok(await page.evaluate(()=>sheet.scrollTop)>0);
 await page.evaluate(()=>{closeSheet();cardDetail('test','2026-10')});assert.equal(await page.evaluate(()=>sheet.scrollTop),0);
 await page.evaluate(()=>window.testPhotoError=true);await open('');await page.locator('[data-photo-status]').filter({hasText:'사진을 읽지 못했습니다'}).waitFor();assert.equal(await page.evaluate(()=>manualRecords['test|2026-10'].eligible),10000);
-await page.evaluate(()=>{window.testPhotoError=false;window.testPhotoPending=true});await open('현재 실적\n999999원');await page.waitForFunction(()=>!!window.testPhotoResolve);await page.locator('[data-photo-cancel]').click();await page.evaluate(()=>window.testPhotoResolve());await page.waitForTimeout(100);assert.equal(await page.locator('[name=eligible]').inputValue(),'10,000');assert.equal(await page.locator('[data-photo-content]').isVisible(),false);assert.equal(await page.evaluate(()=>manualRecords['test|2026-10'].eligible),10000);assert.deepEqual(errors,[]);
+await page.evaluate(()=>{window.testPhotoError=false;window.testPhotoPending=true});await open('현재 실적\n999999원');await page.waitForFunction(()=>!!window.testPhotoResolve);await page.locator('[data-photo-cancel]').click();await page.evaluate(()=>window.testPhotoResolve());await page.waitForTimeout(100);assert.equal(await page.locator('[name=eligible]').inputValue(),'10,000');assert.equal(await page.locator('[data-photo-content]').isVisible(),false);assert.equal(await page.evaluate(()=>manualRecords['test|2026-10'].eligible),10000);// Regression: full-screen OCR sees only discounts; the bubble has digits but no 원.
+await page.evaluate(()=>{
+ window.testPhotoPending=false;
+ const detect=PerformancePhotoImage.findAmountBubbles;
+ PerformancePhotoImage.findAmountBubbles=()=>[{x:20,y:20,width:120,height:30}];
+ window.restorePhotoDetect=()=>{PerformancePhotoImage.findAmountBubbles=detect};
+ window.Tesseract.createWorker=async()=>{let count=0;return{
+  setParameters:async()=>{},terminate:async()=>{},
+  recognize:async()=>({data:{text:++count===1?'18,000원\n10,000원':'852,877'}})
+ }};
+});
+await open('');await page.locator('[data-photo-result]').waitFor({state:'visible'});
+assert.deepEqual(await page.locator('[data-photo-candidates] button').allTextContents(),['852,877원']);
+assert.equal(await page.evaluate(()=>manualRecords['test|2026-10'].eligible),10000);
+await page.locator('[data-photo-candidates] button').click();
+assert.equal(await page.evaluate(()=>manualRecords['test|2026-10'].eligible),852877);
+await page.evaluate(()=>{
+ window.Tesseract.createWorker=async()=>{let count=0;return{
+  setParameters:async()=>{},terminate:async()=>{},
+  recognize:async()=>({data:{text:++count===1?'18,000원\n10,000원':'읽기 실패'}})
+ }};
+});
+await open('');await page.locator('[data-photo-result]').waitFor({state:'visible'});
+assert.equal(await page.locator('[data-photo-candidates] button').count(),0);
+assert.equal(await page.evaluate(()=>manualRecords['test|2026-10'].eligible),852877);
+await page.evaluate(()=>window.restorePhotoDetect());
+assert.deepEqual(errors,[]);
 console.log('PASS: immediate picker; one-click save; cancellation preserves stored data and manual edits; sheet opens at top; month mismatch and failures write nothing; cancelled OCR cannot refill draft.');}finally{await browser.close();fs.rmSync(output,{recursive:true,force:true})}})().catch(e=>{console.error(e);process.exit(1)});

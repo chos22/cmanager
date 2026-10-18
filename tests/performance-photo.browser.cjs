@@ -38,7 +38,7 @@ const base=process.env.CMANAGER_TEST_URL||'http://127.0.0.1:8010';
   await page.locator('[data-photo-result]').waitFor({state:'visible',timeout:90000});
   const candidate=page.locator('[data-photo-candidates] button').filter({hasText:sample.expected.toLocaleString('ko-KR')+'원'});
   assert.equal(await candidate.count(),1);
-  if(sample.name==='mobile-bubble')assert.ok(await page.evaluate(()=>PerformancePhotoParser.parse(window.testBubbleText||'').candidates.some(c=>c.amount===852877)),'Enlarged bubble must independently recognize the amount');
+  if(sample.name==='mobile-bubble')assert.ok(await page.evaluate(()=>PerformancePhotoParser.parseBubbleAmount(window.testBubbleText||'')===852877),'Enlarged bubble must independently recognize the amount');
   assert.equal(await page.evaluate(()=>JSON.stringify(localRows())),before);
   await candidate.click();
   assert.equal(await page.evaluate(()=>manualRecords['a|2026-10'].eligible),sample.expected);

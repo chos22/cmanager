@@ -51,3 +51,12 @@ test('a separate enlarged bubble is not attributed to a preceding reward total',
  const result=parse('이번달 총 혜택 금액\n18,000원\n확대 영역\n852,877원');
  assert.deepEqual(result.candidates.map(c=>c.amount),[852877]);
 });
+
+test('isolated bubble number is readable even without a currency unit',()=>{
+ const {parseBubbleAmount}=require('../performance-photo-parser.js');
+ for(const text of ['852,877','852,877윈','852,877원','852877','852.877','852, 877'])assert.equal(parseBubbleAmount(text),852877);
+ for(const text of ['852,87','18,000원 10,000원','12.50','합산기간 2026.10.1',''])assert.equal(parseBubbleAmount(text),null);
+});
+test('discount labels split off by OCR are not performance amounts',()=>{
+ assert.equal(parse('18,000원\n할인\n10,000원\n할인').candidates.length,0);
+});

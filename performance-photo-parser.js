@@ -12,12 +12,12 @@
   const lines=String(text||'').normalize('NFKC').split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
   const candidates=new Map();
   lines.forEach((line,index)=>{
-   const clean=compact(line),previous=compact(lines[index-1]||'');
+   const clean=compact(line),previous=compact(lines[index-1]||''),next=compact(lines[index+1]||'');
    // Require a currency unit: times, dates, card suffixes and tier markers are not amounts.
    const regex=/(?:\d{1,3}(?:[ ,]\s*\d{3})+|\d+)\s*[원운]/g;
    for(const match of line.matchAll(regex)){
     if(excluded.test(clean)||(!positive.test(clean)&&excluded.test(previous)))continue;
-    if(/^\s*(?:할인|혜택)/.test(line.slice(match.index+match[0].length)))continue;
+    if(/^\s*(?:할인|혜택)/.test(line.slice(match.index+match[0].length))||/^(?:할인|혜택)$/.test(next)||/^(?:할인|혜택)$/.test(previous))continue;
     const amount=Number(match[0].replace(/[,\s원운]/g,''));
     if(!Number.isSafeInteger(amount)||amount<0)continue;
     // Avoid matching the trailing digits of decimal or 만원 amounts.
@@ -49,5 +49,14 @@
   const unique=[...new Map(valid.map(p=>[`${p.year||''}-${p.month}`,p])).values()];
   return{candidates:sorted,amount:best.length===1?best[0].amount:null,period:unique.length===1?unique[0]:null};
  }
- return{parse};
+ // A cropped amount bubble may lose or misread the 원 glyph. Read its number,
+ // not an arbitrary number from a whole screenshot, and reject malformed groups.
+ function parseBubbleAmount(text){
+  const value=String(text||'').normalize('NFKC').trim();
+  const match=value.match(/^[^0-9]*([0-9]{1,3}(?:[, .]\s*[0-9]{3})+|[0-9]{4,})[^0-9]*$/);
+  if(!match)return null;
+  const amount=Number(match[1].replace(/[, .\s]/g,''));
+  return Number.isSafeInteger(amount)&&amount>=0?amount:null;
+ }
+ return{parse,parseBubbleAmount};
 });
