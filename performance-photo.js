@@ -17,6 +17,7 @@
   const q=selector=>root.querySelector(selector),file=q('[data-photo-file]'),status=q('[data-photo-status]');
   const result=q('[data-photo-result]'),content=q('[data-photo-content]');
   let generation=0,worker=null,url=null,disposed=false;
+  let loadedImage=null,selecting=false,dragStart=null,photoPeriod=null;
   const setStatus=text=>{status.textContent=text};
   function stop(){
    if(worker){worker.terminate().catch(()=>{});worker=null}
@@ -32,13 +33,15 @@
    content.hidden=true;result.hidden=true;file.value='';
    q('[data-photo-preview]').hidden=true;q('[data-photo-preview]').removeAttribute('src');
    q('[data-photo-candidates]').replaceChildren();
+   loadedImage=null;selecting=false;dragStart=null;photoPeriod=null;
+   q('[data-photo-selection]').hidden=true;q('[data-photo-region]').disabled=true;
+   q('[data-photo-debug-text]').textContent='';q('[data-photo-preview]').style.touchAction='';q('[data-photo-preview]').style.maxHeight='';
   }
   q('[data-photo-open]').addEventListener('click',()=>file.click());
   q('[data-photo-cancel]').addEventListener('click',()=>{
    clearPhoto();setStatus('사진 선택을 취소했습니다. 기존 저장 기록은 바뀌지 않았어요.');
   });
-  file.addEventListener('change',async()=>{
-   const selected=file.files[0];
+  async function readPhoto(selected,regionOnly=false,inheritedPeriod=null){
    if(!selected)return;
    clearPhoto();const job=generation;content.hidden=false;
    if(!/^image\/(?:png|jpeg|webp|heic|heif)$/.test(selected.type)||selected.size>20*1024*1024){
@@ -51,8 +54,8 @@
     const image=new Image();image.src=url;await image.decode();
     if(!isCurrent())return;
     if(image.naturalWidth*image.naturalHeight>24000000)throw Error('size');
-    const preview=q('[data-photo-preview]');preview.src=url;preview.hidden=false;
-    const scale=Math.min(2,1800/image.naturalWidth,3000/image.naturalHeight);
+    const preview=q('[data-photo-preview]');preview.src=url;preview.hidden=false;loadedImage=image;
+    const scale=Math.min(regionOnly?6:2,1800/image.naturalWidth,(regionOnly?900:3000)/image.naturalHeight);
     const canvas=document.createElement('canvas');canvas.width=Math.round(image.naturalWidth*scale);canvas.height=Math.round(image.naturalHeight*scale);
     const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
     setStatus('사진에서 글자를 읽는 중입니다. 처음에는 인식 도구를 불러오느라 시간이 걸릴 수 있어요.');
@@ -65,18 +68,18 @@
      errorHandler:()=>{},
     });
     if(!isCurrent()){await ownWorker.terminate();return}worker=ownWorker;
-    await ownWorker.setParameters({tessedit_pageseg_mode:'11'});
+    await ownWorker.setParameters({tessedit_pageseg_mode:regionOnly?'7':'11'});
     const {data}=await ownWorker.recognize(canvas);
     if(!isCurrent())return;
-    const recognizedText=data.text,bubbleAmounts=new Set();let bubbleDetected=false;
+    const recognizedText=data.text,bubbleAmounts=new Set(),debug=['전체 인식 내용:',data.text];let bubbleDetected=false;
     // Small text inside a white pill can disappear in full-screen recognition.
     // Locate those regions by color, enlarge them and read them separately.
-    if(window.PerformancePhotoImage){
+    if(!regionOnly&&window.PerformancePhotoImage){
      const probe=document.createElement('canvas'),ratio=Math.min(1,900/canvas.width);
      probe.width=Math.round(canvas.width*ratio);probe.height=Math.round(canvas.height*ratio);
      const probeCtx=probe.getContext('2d');probeCtx.drawImage(canvas,0,0,probe.width,probe.height);
      const bubbles=window.PerformancePhotoImage.findAmountBubbles(probeCtx.getImageData(0,0,probe.width,probe.height));
-     bubbleDetected=bubbles.length>0;
+     bubbleDetected=bubbles.length>0;debug.push('찾은 말풍선 수: '+bubbles.length);
      for(const box of bubbles){
       if(!isCurrent())return;
       const crop=document.createElement('canvas');
@@ -90,13 +93,14 @@
       await ownWorker.setParameters({tessedit_pageseg_mode:'7'});
       const extra=await ownWorker.recognize(crop);
       if(!isCurrent())return;
+      debug.push('말풍선 인식 내용:',extra.data.text);
       const value=window.PerformancePhotoParser.parseBubbleAmount(extra.data.text);
       if(value!==null)bubbleAmounts.add(value);
      }
     }
     const parsed=window.PerformancePhotoParser.parse(recognizedText);
     // An amount-only crop is also supported when the currency unit is clipped.
-    if(canvas.width/canvas.height>=1.8){
+    if(regionOnly||canvas.width/canvas.height>=1.8){
      const value=window.PerformancePhotoParser.parseBubbleAmount(recognizedText);
      if(value!==null)bubbleAmounts.add(value);
     }
@@ -108,6 +112,8 @@
      parsed.candidates=parsed.candidates.filter(candidate=>candidate.score>=3);
      parsed.amount=parsed.candidates.length===1?parsed.candidates[0].amount:null;
     }
+    parsed.period=parsed.period||inheritedPeriod;photoPeriod=parsed.period;
+    q('[data-photo-debug-text]').textContent=debug.join('\n');
     const candidates=q('[data-photo-candidates]');candidates.replaceChildren();
     for(const candidate of parsed.candidates){
      const button=document.createElement('button');button.type='button';button.className='secondary small';
@@ -130,17 +136,56 @@
     if(isCurrent())setStatus('사진을 읽지 못했습니다. 인터넷 연결을 확인하고 실적 부분이 선명한 PNG·JPEG 사진으로 다시 시도하거나 직접 입력해 주세요.');
    }finally{
     if(ownWorker){await ownWorker.terminate().catch(()=>{});if(worker===ownWorker)worker=null}
-    if(job===generation)file.value='';
+    if(job===generation){file.value='';q('[data-photo-region]').disabled=!loadedImage}
    }
+  }
+  file.addEventListener('change',()=>readPhoto(file.files[0]));
+  const preview=q('[data-photo-preview]'),selection=q('[data-photo-selection]');
+  preview.draggable=false;
+  q('[data-photo-region]').addEventListener('click',()=>{
+   if(!loadedImage)return;
+   selecting=!selecting;selection.hidden=true;dragStart=null;
+   preview.style.touchAction=selecting?'none':'';preview.style.maxHeight=selecting?'700px':'';
+   if(selecting)preview.scrollIntoView({block:'start',behavior:'auto'});
+   setStatus(selecting?'사진 속 실적 숫자 부분만 손가락으로 드래그해 네모로 지정해 주세요.':'영역 지정을 취소했습니다.');
   });
+  const point=event=>{
+   const box=preview.getBoundingClientRect();
+   return{x:Math.max(0,Math.min(1,(event.clientX-box.left)/box.width)),y:Math.max(0,Math.min(1,(event.clientY-box.top)/box.height))};
+  };
+  const rectangle=end=>({x:Math.min(dragStart.x,end.x),y:Math.min(dragStart.y,end.y),w:Math.abs(dragStart.x-end.x),h:Math.abs(dragStart.y-end.y)});
+  function paint(rect){
+   selection.hidden=false;selection.style.left=rect.x*100+'%';selection.style.top=rect.y*100+'%';
+   selection.style.width=rect.w*100+'%';selection.style.height=rect.h*100+'%';
+  }
+  preview.addEventListener('pointerdown',event=>{
+   if(!selecting)return;event.preventDefault();dragStart=point(event);preview.setPointerCapture(event.pointerId);paint(rectangle(dragStart));
+  });
+  preview.addEventListener('pointermove',event=>{if(selecting&&dragStart){event.preventDefault();paint(rectangle(point(event)))}});
+  preview.addEventListener('pointercancel',()=>{dragStart=null;selection.hidden=true});
+  preview.addEventListener('pointerup',async event=>{
+   if(!selecting||!dragStart||!loadedImage)return;
+   const rect=rectangle(point(event)),image=loadedImage,period=photoPeriod;
+   dragStart=null;selection.hidden=true;
+   if(rect.w*image.naturalWidth<20||rect.h*image.naturalHeight<8){setStatus('영역이 너무 작아요. 숫자 전체를 포함해서 다시 지정해 주세요.');return}
+   selecting=false;preview.style.touchAction='';
+   const crop=document.createElement('canvas');crop.width=Math.round(rect.w*image.naturalWidth);crop.height=Math.round(rect.h*image.naturalHeight);
+   crop.getContext('2d').drawImage(image,rect.x*image.naturalWidth,rect.y*image.naturalHeight,rect.w*image.naturalWidth,rect.h*image.naturalHeight,0,0,crop.width,crop.height);
+   const job=generation;
+   const blob=await new Promise(resolve=>crop.toBlob(resolve,'image/png'));
+   if(blob&&!disposed&&job===generation&&root.isConnected)readPhoto(blob,true,period);
+  });
+
  }
  function markup(){return `<div class="photo-import" data-photo-root>
   <button class="secondary" data-photo-open type="button">사진에서 실적 가져오기</button>
   <input data-photo-file type="file" accept="image/png,image/jpeg,image/webp,image/heic,image/heif" hidden>
-  <p class="note" data-photo-status role="status" aria-live="polite">사진은 기기 안에서 읽으며 서버에 저장하지 않아요. 처음에는 인터넷이 필요해요. · 인식 개선 2</p>
+  <p class="note" data-photo-status role="status" aria-live="polite">사진은 기기 안에서 읽으며 서버에 저장하지 않아요. 처음에는 인터넷이 필요해요. · 영역 선택·인식 확인</p>
   <div data-photo-content hidden>
    <div class="actions"><button data-photo-cancel type="button" class="secondary">사진 선택 취소</button></div>
-   <img data-photo-preview class="photo-preview" alt="선택한 카드사 실적 화면" hidden>
+   <div class="photo-preview-wrap"><img data-photo-preview class="photo-preview" alt="선택한 카드사 실적 화면" hidden><div data-photo-selection class="photo-selection" hidden></div></div>
+   <button data-photo-region type="button" class="secondary" disabled>실적 숫자 부분만 다시 읽기</button>
+   <details class="photo-debug"><summary>인식한 글자 확인</summary><p class="note">이 내용은 기기에만 표시되며 서버로 전송되지 않아요. 공유할 때는 개인정보를 가려 주세요.</p><pre data-photo-debug-text></pre></details>
    <div data-photo-result hidden><p class="note" data-photo-period></p><div data-photo-review>
     <p>반영할 카드: <b data-photo-card></b><br>반영할 기준 월: <b data-photo-month></b></p>
     <p class="note">카드·기준 월을 확인하세요. 금액을 누르면 바로 저장됩니다. 남은 금액이나 한도는 선택하지 마세요.</p>

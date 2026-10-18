@@ -450,3 +450,10 @@ button.danger{background:#fff5f5;color:#b9424b;border:1px solid #f0cdd0;border-r
 .photo-candidates{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}
 .photo-import button:disabled{opacity:.45;cursor:not-allowed}
 .photo-candidates button[aria-pressed=true]{background:#24578c;color:#fff;border-color:#24578c}
+
+.photo-preview-wrap{position:relative;width:fit-content;max-width:100%;margin:12px auto}
+.photo-preview-wrap .photo-preview{margin:0}
+.photo-selection{position:absolute;pointer-events:none;border:2px solid #ffb300;background:#ffb30033}
+.photo-debug{margin:12px 0}.photo-debug pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:240px;overflow:auto;font-size:12px;padding:10px;background:#fff}
+
+.photo-preview{scroll-margin-top:80px}

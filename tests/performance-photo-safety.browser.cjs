@@ -54,5 +54,20 @@ await open('');await page.locator('[data-photo-result]').waitFor({state:'visible
 assert.equal(await page.locator('[data-photo-candidates] button').count(),0);
 assert.equal(await page.evaluate(()=>manualRecords['test|2026-10'].eligible),852877);
 await page.evaluate(()=>window.restorePhotoDetect());
+// Region reread retains the original month and never saves until the candidate is tapped.
+await page.evaluate(()=>{
+ window.testRegionReadCount=0;
+ window.Tesseract.createWorker=async()=>({setParameters:async()=>{},terminate:async()=>{},recognize:async()=>({data:{text:++window.testRegionReadCount===1?'合算期間\n현재 실적\n10000원':'852,877'}})});
+});
+await open('');await page.locator('[data-photo-result]').waitFor({state:'visible'});
+await page.locator('[data-photo-region]').click();
+const bounds=await page.locator('[data-photo-preview]').boundingBox();
+await page.mouse.move(bounds.x+bounds.width*.1,bounds.y+bounds.height*.1);await page.mouse.down();
+await page.mouse.move(bounds.x+bounds.width*.8,bounds.y+bounds.height*.4);await page.mouse.up();
+await page.waitForFunction(()=>window.testRegionReadCount>=2);
+await page.locator('[data-photo-candidates] button').filter({hasText:'852,877원'}).waitFor();
+assert.equal(await page.evaluate(()=>manualRecords['test|2026-10'].eligible),852877);
+await page.locator('.photo-debug summary').click();assert.ok((await page.locator('[data-photo-debug-text]').textContent()).includes('852,877'));
+await page.locator('[data-photo-cancel]').click();assert.equal(await page.evaluate(()=>manualRecords['test|2026-10'].eligible),852877);
 assert.deepEqual(errors,[]);
 console.log('PASS: immediate picker; one-click save; cancellation preserves stored data and manual edits; sheet opens at top; month mismatch and failures write nothing; cancelled OCR cannot refill draft.');}finally{await browser.close();fs.rmSync(output,{recursive:true,force:true})}})().catch(e=>{console.error(e);process.exit(1)});

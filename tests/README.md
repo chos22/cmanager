@@ -34,3 +34,8 @@ proves recognition accuracy on all screenshots or on an actual iPhone.
 The source screenshots supplied in chat are not stored in the repository. The text
 fixtures represent their layouts; actual recognition on those original images and
 on iPhone Safari remains a manual check before deployment.
+
+Screenshot import also offers a manual rectangular region reread and a local-only
+OCR text view for diagnosing screenshots that the automatic recognizer misses.
+The safety browser check verifies region selection does not save before a candidate
+is chosen and preserves the original screenshot's period when rereading a crop.
